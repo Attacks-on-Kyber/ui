@@ -1,0 +1,39 @@
+<RCC>
+  <qresource prefix="svg">
+    <file>images/group.png</file>
+    <file>images/svg/close-one.svg</file>
+    <file>images/svg/double-left.svg</file>
+    <file>images/svg/double-right.svg</file>
+    <file>images/svg/history-query.svg</file>
+    <file>images/svg/picture.svg</file>
+    <file>images/svg/scissors.svg</file>
+    <file>images/svg/smiling-face.svg</file>
+  </qresource>
+  <qresource prefix="png">
+    <file>images/登录.png</file>
+    <file>images/关闭.png</file>
+    <file>images/最小化3.png</file>
+    <file>images/字母/A.png</file>
+    <file>images/字母/B.png</file>
+    <file>images/字母/C.png</file>
+    <file>images/字母/D.png</file>
+    <file>images/字母/F.png</file>
+    <file>images/字母/G.png</file>
+    <file>images/字母/H.png</file>
+    <file>images/字母/I.png</file>
+    <file>images/字母/K.png</file>
+    <file>images/字母/L.png</file>
+    <file>images/字母/M.png</file>
+    <file>images/字母/N.png</file>
+    <file>images/字母/P.png</file>
+    <file>images/字母/Q.png</file>
+    <file>images/字母/R.png</file>
+    <file>images/字母/S.png</file>
+    <file>images/字母/U.png</file>
+    <file>images/字母/V.png</file>
+    <file>images/字母/W.png</file>
+    <file>images/字母/X.png</file>
+    <file>images/字母/Z.png</file>
+    <file>images/group.png</file>
+  </qresource>
+</RCC>
