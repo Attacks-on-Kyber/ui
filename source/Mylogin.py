@@ -560,7 +560,7 @@ class Myrecvtalk(QMainWindow, Ui_recv_win):
             time.sleep(5)
             print("检测到公钥中的后门")
             print("计算私钥...")
-            os.system('./recovery')
+            print(base64_encoded1)
         
         
     def up_file(self, recv_email,file_req):
