@@ -368,6 +368,7 @@ class Ui_recv_win(object):
         self.horizontalLayout_31.addWidget(self.pushButton_8)
         
         self.comboBox = QtWidgets.QComboBox(self.frame_29)
+        self.comboBox.addItem("Normal")
         self.comboBox.addItem("KYBER512")
         self.comboBox.addItem("KYBER768")
         self.comboBox.addItem("KYBER1024")

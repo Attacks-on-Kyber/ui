@@ -18,7 +18,7 @@ from src.Ui_record import Ui_record
 import socket, hashlib
 
 import client
-import server_db
+import server_db,subprocess
 
 
 import sys
@@ -29,9 +29,40 @@ from PyQt5.QtCore import Qt, QPropertyAnimation, QRect, QEasingCurve
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMainWindow, QApplication, QDesktopWidget, QListWidgetItem, QLabel, QWidget,QHBoxLayout, QFrame
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from api import *
 sock_3 = socket.socket()
 server = json.load(open('./client_config.json'))
+
+def aes_encrypt(plaintext, key):
+    # 使用 AES 加密算法进行加密
+    backend = default_backend()
+    iv = b"1234512345123451"  # 初始化向量 (IV)，16 字节长
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=backend)
+    encryptor = cipher.encryptor()
+
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded_plaintext = padder.update(plaintext) + padder.finalize()
+
+    ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
+    return base64.urlsafe_b64encode(ciphertext)
+
+def aes_decrypt(ciphertext, key):
+    # 使用 AES 加密算法进行解密
+    backend = default_backend()
+    iv = b"1234512345123451"  # 初始化向量 (IV)，16 字节长
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=backend)
+    decryptor = cipher.decryptor()
+
+    padded_plaintext = decryptor.update(base64.urlsafe_b64decode(ciphertext)) + decryptor.finalize()
+
+    unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+    plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+    return plaintext
 
 class Mylogin(QtWidgets.QMainWindow,Ui_login):
     def __init__(self) -> None:
@@ -375,34 +406,161 @@ class Myrecvtalk(QMainWindow, Ui_recv_win):
         self.pushButton_8.clicked.connect(self.record_control)
         self.listWidget.itemClicked['QListWidgetItem*'].connect(self.recv_ok)
         self.record_win = None
+        self.shared_key = None
         self.float_animation_start()
         # self.key_init()
         
     def key_init(self):
-        self.pk = (ctypes.c_uint8 * CRYPTO_PUBLICKEYBYTES)()
-        self.sk = (ctypes.c_uint8 * CRYPTO_SECRETKEYBYTES)()
-        self.skpoly = polyvec()
+        if self.comboBox.currentText() in {'KYBER768_Mismatch','KYBER1024_Mismatch','KYBER512_Mismatch'}:
+            with open("pk.txt", "r") as fp:
+                pk_str = fp.read()
 
-        crypto_kem_keypair(self.pk, self.sk, ctypes.byref(self.skpoly))
-        pk_bytes = bytearray(self.pk)
-        base64_encoded = base64.b64encode(pk_bytes).decode('utf-8')
-        print('生成公钥：' + base64_encoded)
-        sk_bytes = bytearray(self.sk)
-        base64_encoded = base64.b64encode(sk_bytes).decode('utf-8')
-        print('生成私钥：' + base64_encoded)
+            # 将 CSV 格式的字符串转换为 Python 列表
+            pk_list = [int(x) for x in pk_str.split(",")]
+            
+            with open("sk.txt", "r") as fp:
+                sk_str = fp.read()
+
+            # 将 CSV 格式的字符串转换为 Python 列表
+            sk_list = [int(x) for x in sk_str.split(",")]
+            
+            self.pk = (ctypes.c_uint8 * CRYPTO_PUBLICKEYBYTES)(*pk_list)
+            self.sk = (ctypes.c_uint8 * CRYPTO_SECRETKEYBYTES)(*sk_list)
+            self.skpoly = polyvec()
+
+            pk_bytes = bytearray(self.pk)
+            base64_encoded = base64.b64encode(pk_bytes).decode('utf-8')
+            print('生成公钥：' + base64_encoded)
+            sk_bytes = bytearray(self.sk)
+            base64_encoded1 = base64.b64encode(sk_bytes).decode('utf-8')
+            print('生成私钥：' + base64_encoded1)
+            
+            send_new = 'KEYINIT: ' + str(base64_encoded)
+            
+            frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+            self.generate_text_frame_self(frame_27,send_new[:20], self.host_email)
+            self.verticalLayout_21.addWidget(frame_27)        
+            new_dict = dict()
+            new_dict['personal_talk'] = self.recv_email
+            new_dict['message'] = send_new
+            news = json.dumps(new_dict, ensure_ascii=False)
+            MyThread().action(news)   
+            
+            time.sleep(5)
+            print("检测到重用公钥")
+            print("开始发起query")
+            # 启动 server 子进程
+            server_process = subprocess.Popen('./server', shell=True)
+
+            # 启动 client 子进程
+            client_process = subprocess.Popen('./client', shell=True)
+
+            # 等待 server 和 client 进程完成
+            server_process.wait()
+            client_process.wait()
+        elif self.comboBox.currentText() in {'KYBER768_Recovery','KYBER512_Recovery','KYBER1024_Recovery'} :
+            with open("pk.txt", "r") as fp:
+                pk_str = fp.read()
+
+            # 将 CSV 格式的字符串转换为 Python 列表
+            pk_list = [int(x) for x in pk_str.split(",")]
+            
+            with open("sk.txt", "r") as fp:
+                sk_str = fp.read()
+
+            # 将 CSV 格式的字符串转换为 Python 列表
+            sk_list = [int(x) for x in sk_str.split(",")]
+            
+            self.pk = (ctypes.c_uint8 * CRYPTO_PUBLICKEYBYTES)(*pk_list)
+            self.sk = (ctypes.c_uint8 * CRYPTO_SECRETKEYBYTES)(*sk_list)
+            self.skpoly = polyvec()
+
+            pk_bytes = bytearray(self.pk)
+            base64_encoded = base64.b64encode(pk_bytes).decode('utf-8')
+            print('生成公钥：' + base64_encoded)
+            sk_bytes = bytearray(self.sk)
+            base64_encoded1 = base64.b64encode(sk_bytes).decode('utf-8')
+            print('生成私钥：' + base64_encoded1)
+            
+            send_new = 'KEYINIT: ' + str(base64_encoded)
+            
+            frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+            self.generate_text_frame_self(frame_27,send_new[:20], self.host_email)
+            self.verticalLayout_21.addWidget(frame_27)        
+            new_dict = dict()
+            new_dict['personal_talk'] = self.recv_email
+            new_dict['message'] = send_new
+            news = json.dumps(new_dict, ensure_ascii=False)
+            MyThread().action(news)   
+            
+            time.sleep(5)
+            print("检测到重用公钥")
+            print("开始发起query")
+            os.system('./recovery')
+        elif self.comboBox.currentText() in {'KYBER768','KYBER512','KYBER1024','Normal'}:
+            self.pk = (ctypes.c_uint8 * CRYPTO_PUBLICKEYBYTES)()
+            self.sk = (ctypes.c_uint8 * CRYPTO_SECRETKEYBYTES)()
+            self.skpoly = polyvec()
+
+            crypto_kem_keypair(self.pk, self.sk, ctypes.byref(self.skpoly))
+            pk_bytes = bytearray(self.pk)
+            base64_encoded = base64.b64encode(pk_bytes).decode('utf-8')
+            print('生成公钥：' + base64_encoded)
+            sk_bytes = bytearray(self.sk)
+            base64_encoded1 = base64.b64encode(sk_bytes).decode('utf-8')
+            print('生成私钥：' + base64_encoded1)
+            
+            send_new = 'KEYINIT: ' + str(base64_encoded)
+            
+            frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+            self.generate_text_frame_self(frame_27,send_new[:20], self.host_email)
+            self.verticalLayout_21.addWidget(frame_27)        
+            new_dict = dict()
+            new_dict['personal_talk'] = self.recv_email
+            new_dict['message'] = send_new
+            news = json.dumps(new_dict, ensure_ascii=False)
+            MyThread().action(news)        
         
-        send_new = 'KEYINIT: ' + str(base64_encoded)
-        
-        frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
-        self.generate_text_frame_self(frame_27,send_new[:20], self.host_email)
-        self.verticalLayout_21.addWidget(frame_27)        
-        new_dict = dict()
-        new_dict['personal_talk'] = self.recv_email
-        new_dict['message'] = send_new
-        news = json.dumps(new_dict, ensure_ascii=False)
-        MyThread().action(news)        
-        
-        
+        elif self.comboBox.currentText() in {'KYBER768_Backdoor','KYBER512_Backdoor','KYBER1024_Backdoor'}:
+            with open("pk.txt", "r") as fp:
+                pk_str = fp.read()
+
+            # 将 CSV 格式的字符串转换为 Python 列表
+            pk_list = [int(x) for x in pk_str.split(",")]
+            
+            with open("sk.txt", "r") as fp:
+                sk_str = fp.read()
+
+            # 将 CSV 格式的字符串转换为 Python 列表
+            sk_list = [int(x) for x in sk_str.split(",")]
+            
+            self.pk = (ctypes.c_uint8 * CRYPTO_PUBLICKEYBYTES)()
+            self.sk = (ctypes.c_uint8 * CRYPTO_SECRETKEYBYTES)()
+            self.skpoly = polyvec()
+
+            crypto_kem_keypair(self.pk, self.sk, ctypes.byref(self.skpoly))
+            pk_bytes = bytearray(self.pk)
+            base64_encoded = base64.b64encode(pk_bytes).decode('utf-8')
+            print('生成公钥：' + base64_encoded)
+            sk_bytes = bytearray(self.sk)
+            base64_encoded1 = base64.b64encode(sk_bytes).decode('utf-8')
+            print('生成私钥：' + base64_encoded1)
+            
+            send_new = 'KEYINIT: ' + str(base64_encoded)
+            
+            frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+            self.generate_text_frame_self(frame_27,send_new[:20], self.host_email)
+            self.verticalLayout_21.addWidget(frame_27)        
+            new_dict = dict()
+            new_dict['personal_talk'] = self.recv_email
+            new_dict['message'] = send_new
+            news = json.dumps(new_dict, ensure_ascii=False)
+            MyThread().action(news) 
+            
+            time.sleep(5)
+            print("检测到公钥中的后门")
+            print("计算私钥...")
+            os.system('./recovery')
         
         
     def up_file(self, recv_email,file_req):
@@ -466,10 +624,24 @@ class Myrecvtalk(QMainWindow, Ui_recv_win):
                 h.write(req + '\n')
             
             if send_new != '':
+                
+                emode = self.comboBox.currentText()
                 frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
                 self.generate_text_frame_self(frame_27,send_new, self.host_email)
                 self.verticalLayout_21.addWidget(frame_27)
                 self.textEdit_2.clear()
+                if emode in {'Normal'}:
+                    pass
+                if emode != 'Normal':
+                    if self.shared_key != None:
+                        send_new = 'ENCRYPT:' + str(aes_encrypt(send_new.encode() ,self.shared_key))
+                        frame_27 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+                        self.generate_text_frame_self(frame_27,send_new, self.host_email)
+                        self.verticalLayout_21.addWidget(frame_27)
+                        print(send_new)
+                        req = now_time + ':' + self.host_email + ':' + send_new
+                        with open('third.txt','a',encoding='utf-8') as f:
+                            f.write(req+'\n')
                 new_dict = dict()
                 new_dict['personal_talk'] = self.recv_email
                 new_dict['message'] = send_new
@@ -1185,6 +1357,7 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                         crypto_kem_enc(obj[0].ciphertext, obj[0].shared_key, pk)
                         
                         result = bytearray(obj[0].shared_key)  # 将ctypes数组转换为字节数组
+                        obj[0].shared_key=result
                         base64_encoded = base64.b64encode(result).decode('utf-8')
                         print('生成共享密钥：' + base64_encoded)   
                         # print(1111)
@@ -1217,10 +1390,19 @@ class MyMainForm(QMainWindow, Ui_MainWindow):
                         ciphertext = c_type.from_buffer_copy(base64_decoded)
                         out_shared_secret = (ctypes.c_uint8 * KYBER_SYMBYTES)()
                         crypto_kem_dec(out_shared_secret, ciphertext, obj[0].sk)
-                        obj[0].shared_key = out_shared_secret
                         result = bytearray(out_shared_secret)  # 将ctypes数组转换为字节数组
+                        obj[0].shared_key = result
                         base64_encoded = base64.b64encode(result).decode('utf-8')
                         print('生成共享密钥：' + base64_encoded)                        
+                    elif news[:8] == 'ENCRYPT:':
+                        news = news[9:]
+                        frame_23 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+                        self.generate_text_frame(frame_23, news, other_name)
+                        obj[0].verticalLayout_21.addWidget(frame_23)
+                        news = str(aes_decrypt(news.encode(), obj[0].shared_key).decode())
+                        frame_23 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
+                        self.generate_text_frame(frame_23, news, other_name)
+                        obj[0].verticalLayout_21.addWidget(frame_23)
                     else:
                         frame_23 = QtWidgets.QFrame(self.scrollAreaWidgetContents_7)
                         self.generate_text_frame(frame_23, news, other_name)

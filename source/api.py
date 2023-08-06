@@ -118,3 +118,6 @@ crypto_kem_dec = lib.pqcrystals_kyber768_ref_dec
 # result = bytearray(ss_result)  # 将ctypes数组转换为字节数组
 # base64_encoded = base64.b64encode(result).decode('utf-8')
 # print(base64_encoded)
+
+lib.randombytes_init.argtypes = [ctypes.POINTER(ctypes.c_ubyte), ctypes.c_void_p, ctypes.c_size_t]
+lib.randombytes_init.restype = None
